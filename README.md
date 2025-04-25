@@ -37,5 +37,4 @@ Semana	Tarefa
 5	Testes de funcionamento e ajustes
 6	Documentação e preparação da apresentação final
 
-
-
+Durante a simulação, utilizamos o botão "Motion" do sensor PIR para simular a detecção de movimento. Ao pressioná-lo, o LED foi acionado corretamente, confirmando que o sinal digital estava sendo lido e interpretado pelo ESP32 de forma adequada. Os dados foram exibidos em tempo real no Monitor Serial, mostrando valores de leitura da LDR e mensagens indicando a detecção ou não de movimento.
