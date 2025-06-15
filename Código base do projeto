@@ -1,0 +1,17 @@
+#define PIR_PIN 13  // Pino conectado ao OUT do sensor
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PIR_PIN, INPUT);
+  Serial.println("Sensor PIR pronto...");
+}
+
+void loop() {
+  int estado = digitalRead(PIR_PIN);
+  if (estado == HIGH) {
+    Serial.println("Movimento detectado!");
+  } else {
+    Serial.println("Sem movimento...");
+  }
+  delay(1000); // espera 1 segundo
+}
