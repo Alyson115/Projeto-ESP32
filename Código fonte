@@ -1,1 +1,101 @@
+#include <WiFi.h>  // Biblioteca para conectar o ESP32 ao Wi-Fi
+#include <WebServer.h>  // Biblioteca para criar um servidor web
+#include "esp_sleep.h"  // Biblioteca para usar modo deep sleep
 
+const char* ssid = "esp32";       // Nome da rede Wi-Fi 
+const char* password = "12345678";  // Senha da rede Wi-Fi
+
+WebServer server(80);
+
+const int pirPin = 12; // Pino do PIR 
+
+unsigned long ultimoCheck = 0;            // Armazena o tempo da última checagem do sensor
+const unsigned long intervalo = 200;          // Intervalo de leitura do PIR (200 ms)
+unsigned long tempoUltimoMovimento = 0;       // Armazena o tempo do último movimento detectado
+const unsigned long tempoSemMovimento = 30000; // Tempo sem movimento para entrar em sleep (30s)
+
+// Função que trata a página inicial do servidor web
+void handleRoot() {
+  String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'>";
+  html += "<meta http-equiv='refresh' content='2'>";  // Atualiza a página automaticamente a cada 2 segundos
+  html += "<style>body{font-family:Arial;text-align:center;}</style>";
+  html += "</head><body>";
+  html += "<font size = '10'>";
+  html += "<h2>Monitoramento PIR via ESP32</h2>";
+  html += movimento ? "<h3 style='color:red;'>Movimento Detectado!</h3>" : "<h3 style='color:green;'>Sem Movimento</h3>";
+  html += "<p>Atualize manualmente ou aguarde 2 segundos.</p>";
+  html += "</font>";
+  html += "</body></html>";
+  server.send(200, "text/html", html);  // Envia o HTML como resposta
+}
+
+// Função para entrar no modo Deep Sleep após 30 segundos sem movimento
+void entrarEmSleep() {
+  Serial.println("Sem movimento por 30 segundos. Entrando em Deep Sleep...");
+  delay(1000); // tempo para ver a mensagem no monitor serial
+  esp_sleep_enable_ext0_wakeup((gpio_num_t)pirPin, 1); // Acorda quando o PIR estiver HIGH
+  esp_deep_sleep_start();
+}
+
+// Função de configuração (executada uma vez ao iniciar)
+void setup() {
+  Serial.begin(115200);
+  delay(1000); // tempo para o serial abrir corretamente
+
+  // Verifica se acordou do modo Deep Sleep por causa do PIR
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
+    Serial.println("Acordou com movimento do sensor PIR!");
+  }
+
+  pinMode(pirPin, INPUT);
+
+   // Conexão ao Wi-Fi
+  WiFi.begin(ssid, password);
+  Serial.print("Conectando ao Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);  // ok usar aqui
+    Serial.print(".");
+  }
+
+  Serial.println("\nConectado! IP:");
+  Serial.println(WiFi.localIP()); // Exibe o IP do ESP32
+
+  server.on("/", handleRoot);
+  server.begin();  // Inicia o servidor web
+  Serial.println("Servidor web iniciado.");
+
+  tempoUltimoMovimento = millis();  // Marca o tempo inicial como último movimento
+}
+
+// Função que roda continuamente
+void loop() {
+  unsigned long agora = millis();
+
+  // Leitura periódica com millis()
+  if (agora - ultimoCheck >= intervalo) {
+    ultimoCheck = agora;
+
+    bool leituraPIR = digitalRead(pirPin);
+
+    if (leituraPIR) {
+      if (!movimento) {
+        Serial.println("Movimento detectado.");
+      }
+      movimento = true;
+      tempoUltimoMovimento = agora; // Atualiza tempo do último movimento
+    } else {
+      // Se não há movimento por mais de 2 segundos, atualiza o estado
+      if (movimento && (agora - tempoUltimoMovimento > 2000)) {  
+        Serial.println("Sem movimento.");
+        movimento = false;
+      }
+    }
+  }
+
+  // Entra em deep sleep após 30 segundos sem movimento
+  if (!movimento && (millis() - tempoUltimoMovimento >= tempoSemMovimento)) {
+    entrarEmSleep();
+  }
+
+  server.handleClient();  // Trata requisições da web
+}
